@@ -1,25 +1,82 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+#Loading and preprocessing the data
+- Downloads the data, unzips and loads the data
+- Date is transformed from text to date variable 
 
-
-## Loading and preprocessing the data
-
-
-
-## What is mean total number of steps taken per day?
-
-
-
-## What is the average daily activity pattern?
+```{r}
+library(downloader)
+temp <- tempfile()
+download("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", temp)
+data <- read.csv(unz(temp, "activity.csv"))
+data$date <- as.Date(data$date, format="%Y-%m-%d")
+unlink(temp)
+```
 
 
 
-## Imputing missing values
+#What is mean total number of steps taken per day?
+- Histogram of total number of steps taken per day
+
+```{r}
+library(dplyr)
+library(ggplot2)
+plot1 <- group_by(data, date) %>% summarize(TotalStepsPerDay = sum(steps, na.rm=TRUE))
+qplot(TotalStepsPerDay, data=plot1, geom="histogram", main="Histogram of TotalStepsPerDay", ylab = "Frequency", binwidth = 3000)
+```
+
+- The mean and median of the total number of steps taken per day
+
+```{r}
+mean(plot1$TotalStepsPerDay)
+median(plot1$TotalStepsPerDay)
+```
 
 
+#What is the average daily activity pattern?
+- Time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r}
+plot2 <- group_by(data, interval) %>% summarize(AverageSteps = mean(steps, na.rm=TRUE))
+qplot(interval, AverageSteps, data=plot2, geom="line", main="Average Steps by Interval")
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+- Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r}
+plot2[which.max(plot2$AverageSteps),]
+```
+
+
+#Imputing missing values
+- The total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r}
+sum(is.na(data$steps))
+```
+
+- Missing data is imputed by using the mean for the 5min interval
+```{r}
+data2 <- data
+data2$imputeSteps <- ifelse(is.na(data2$steps), plot2$AverageSteps[match(data2$interval, plot2$interval)], data2$steps)
+```
+
+- Histogram of the total number of steps taken each day and the mean and median total number of steps taken per day.
+```{r}
+plot3 <- group_by(data2, date) %>% summarize(TotalStepsPerDay = sum(imputeSteps))
+qplot(TotalStepsPerDay, data=plot3, geom="histogram", main="Histogram of TotalStepsPerDay", ylab="Frequency", binwidth = 3000)
+mean(plot3$TotalStepsPerDay)
+median(plot3$TotalStepsPerDay)
+```
+Estimate of total daily number of steps is different from without imputation, it is larger since the missing values are no longer dropped and is estimated base on the mean for that interval
+
+
+#Are there differences in activity patterns between weekdays and weekends?
+- Create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+```{r}
+data2$day <- weekdays(data2$date)
+data2$weekday <- as.factor(ifelse(data2$day %in% c("Saturday","Sunday"), "Weekend", "Weekday"))
+```
+
+- Panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+
+```{r}
+plot4 <- group_by(data2, interval, weekday) %>% summarize(AverageSteps = mean(imputeSteps))
+qplot(interval, AverageSteps, data=plot4, facets = weekday~., geom="line", main="Average Steps by Interval")
+```
+
